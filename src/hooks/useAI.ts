@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { SYSTEM_PROMPT } from '../lib/constants';
-import { getDecryptedApiKey, useSettingsStore } from '../stores/settingsStore';
+import { getDecryptedApiKey, getDecryptedOllamaApiKey, useSettingsStore } from '../stores/settingsStore';
 import type { Platform, ContentType, Theme, Tone, Language } from '../types';
 
 export interface GeneratedContent {
@@ -140,14 +140,19 @@ Réponds EXACTEMENT au format JSON suivant (pas de markdown, pas de texte avant/
 
   /* ───── Ollama ───── */
   const generateViaOllama = async (options: UseAIOptions): Promise<GeneratedContent> => {
-    const url = (ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '');
+    const url = (ollamaBaseUrl || '').replace(/\/$/, '');
     const model = ollamaModel || 'llama3.1';
+    if (!url) throw new Error("URL Ollama non configurée. Va dans Paramètres.");
 
     const { systemPrompt, userPrompt } = buildPrompt(options);
 
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const ollamaKey = getDecryptedOllamaApiKey();
+    if (ollamaKey) headers['Authorization'] = `Bearer ${ollamaKey}`;
+
     const response = await fetch(`${url}/api/generate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         model,
         system: systemPrompt,
@@ -162,7 +167,7 @@ Réponds EXACTEMENT au format JSON suivant (pas de markdown, pas de texte avant/
     });
 
     if (!response.ok) {
-      throw new Error(`Erreur Ollama: ${response.status} — Vérifie qu'Ollama tourne sur ${url}`);
+      throw new Error(`Erreur Ollama: ${response.status} — Vérifie l'URL et la clé API`);
     }
 
     const data = await response.json();
@@ -192,9 +197,13 @@ Réponds EXACTEMENT au format JSON suivant (pas de markdown, pas de texte avant/
 
   const testConnection = async (): Promise<{ success: boolean; message: string }> => {
     if (aiProvider === 'ollama') {
-      const url = (ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '');
+      const url = (ollamaBaseUrl || '').replace(/\/$/, '');
+      if (!url) return { success: false, message: "URL Ollama non configurée" };
       try {
-        const response = await fetch(`${url}/api/tags`, { method: 'GET' });
+        const headers: Record<string, string> = {};
+        const ollamaKey = getDecryptedOllamaApiKey();
+        if (ollamaKey) headers['Authorization'] = `Bearer ${ollamaKey}`;
+        const response = await fetch(`${url}/api/tags`, { method: 'GET', headers });
         if (response.ok) return { success: true, message: 'Ollama connecté ✓' };
         return { success: false, message: `Ollama erreur ${response.status}` };
       } catch {

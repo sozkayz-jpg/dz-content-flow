@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { useSettingsStore, getDecryptedApiKey } from '../../stores/settingsStore';
+import { useSettingsStore, getDecryptedApiKey, getDecryptedOllamaApiKey } from '../../stores/settingsStore';
 import { useContentStore } from '../../stores/contentStore';
 import { useLiveStore } from '../../stores/liveStore';
 import { useStrategyStore } from '../../stores/strategyStore';
@@ -54,6 +54,7 @@ export function SettingsPage() {
     setSupabaseAnonKey,
     setOllamaBaseUrl,
     setOllamaModel,
+    setOllamaApiKey,
     resetAll: resetSettings,
   } = useSettingsStore();
 
@@ -67,6 +68,7 @@ export function SettingsPage() {
   const [localSupabaseKey, setLocalSupabaseKey] = useState(supabaseAnonKey);
   const [localOllamaUrl, setLocalOllamaUrl] = useState(ollamaBaseUrl);
   const [localOllamaModel, setLocalOllamaModel] = useState(ollamaModel);
+  const [localOllamaApiKey, setLocalOllamaApiKey] = useState(getDecryptedOllamaApiKey() || '');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing'>('idle');
@@ -87,6 +89,7 @@ export function SettingsPage() {
     setSupabaseAnonKey(localSupabaseKey);
     setOllamaBaseUrl(localOllamaUrl);
     setOllamaModel(localOllamaModel);
+    if (localOllamaApiKey) setOllamaApiKey(localOllamaApiKey);
     toast.success('Paramètres sauvegardés');
   };
 
@@ -280,16 +283,20 @@ export function SettingsPage() {
           ) : (
             <>
               <div className="space-y-2">
-                <label className="text-sm text-text-secondary">URL Ollama</label>
+                <label className="text-sm text-text-secondary">URL Ollama (Cloud)</label>
                 <div className="flex gap-2">
-                  <input value={localOllamaUrl} onChange={(e) => { setLocalOllamaUrl(e.target.value); setTestStatus('idle'); }} placeholder="http://localhost:11434" className="flex-1 font-mono text-xs" />
+                  <input value={localOllamaUrl} onChange={(e) => { setLocalOllamaUrl(e.target.value); setTestStatus('idle'); }} placeholder="https://ton-ollama.run.app" className="flex-1 font-mono text-xs" />
                   <Button variant="secondary" size="sm" onClick={testConnection} isLoading={testStatus === 'testing'}>
                     {testStatus === 'success' && <Check className="w-4 h-4 text-green-400" />}
                     Tester
                   </Button>
                 </div>
                 {testStatus === 'success' && <p className="text-xs text-green-400">✓ Ollama connecté</p>}
-                {testStatus === 'error' && <p className="text-xs text-red-400">✗ Ollama injoignable</p>}
+                {testStatus === 'error' && <p className="text-xs text-red-400">✗ Connexion échouée</p>}
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-text-secondary">Clé API Ollama (optionnelle)</label>
+                <input type="password" value={localOllamaApiKey} onChange={(e) => { setLocalOllamaApiKey(e.target.value); setTestStatus('idle'); }} placeholder="sk-..." className="w-full font-mono text-xs" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

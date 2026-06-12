@@ -17,6 +17,7 @@ interface SettingsState extends Settings {
   setSupabaseAnonKey: (key: string) => void;
   setOllamaBaseUrl: (url: string) => void;
   setOllamaModel: (model: string) => void;
+  setOllamaApiKey: (key: string) => void;
   completeOnboarding: () => void;
   resetAll: () => void;
 }
@@ -38,8 +39,9 @@ const defaultSettings: Settings = {
   },
   supabaseUrl: '',
   supabaseAnonKey: '',
-  ollamaBaseUrl: 'http://localhost:11434',
+  ollamaBaseUrl: '',
   ollamaModel: 'llama3.1',
+  ollamaApiKey: '',
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -70,6 +72,7 @@ export const useSettingsStore = create<SettingsState>()(
       setSupabaseAnonKey: (key) => set({ supabaseAnonKey: key }),
       setOllamaBaseUrl: (url) => set({ ollamaBaseUrl: url }),
       setOllamaModel: (model) => set({ ollamaModel: model }),
+      setOllamaApiKey: (key) => set({ ollamaApiKey: encryptSimple(key) }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
       resetAll: () => set({ ...defaultSettings, hasCompletedOnboarding: false }),
     }),
@@ -88,6 +91,7 @@ export const useSettingsStore = create<SettingsState>()(
         supabaseAnonKey: state.supabaseAnonKey,
         ollamaBaseUrl: state.ollamaBaseUrl,
         ollamaModel: state.ollamaModel,
+        ollamaApiKey: state.ollamaApiKey,
         hasCompletedOnboarding: state.hasCompletedOnboarding,
       }),
     }
@@ -97,4 +101,9 @@ export const useSettingsStore = create<SettingsState>()(
 export function getDecryptedApiKey(): string {
   const state = useSettingsStore.getState();
   return decryptSimple(state.apiKey);
+}
+
+export function getDecryptedOllamaApiKey(): string {
+  const state = useSettingsStore.getState();
+  return decryptSimple(state.ollamaApiKey);
 }

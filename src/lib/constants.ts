@@ -68,7 +68,7 @@ export const LIVE_OBJECTIVES = [
 
 export const AI_PROVIDERS = [
   { id: 'openrouter' as const, label: 'OpenRouter (Cloud)' },
-  { id: 'ollama' as const, label: 'Ollama (Local)' },
+  { id: 'ollama' as const, label: 'Ollama (Cloud)' },
 ];
 
 export const AI_MODELS = [

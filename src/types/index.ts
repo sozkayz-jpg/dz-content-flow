@@ -142,6 +142,7 @@ export interface Settings {
   supabaseAnonKey: string;
   ollamaBaseUrl: string;
   ollamaModel: string;
+  ollamaApiKey: string;
 }
 
 export interface DailyData {
