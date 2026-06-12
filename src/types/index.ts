@@ -117,14 +117,31 @@ export interface WeeklyKPI {
   };
 }
 
+export type AIProvider = 'openrouter' | 'ollama';
+
+export interface SupabaseConfig {
+  url: string;
+  anonKey: string;
+}
+
+export interface OllamaConfig {
+  baseUrl: string;
+  model: string;
+}
+
 export interface Settings {
   creatorName: string;
   niche: string;
   activePlatforms: Platform[];
+  aiProvider: AIProvider;
   apiKey: string;
   defaultModel: string;
   defaultLanguage: Language;
   followerGoals90d: Record<Platform, number>;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
 }
 
 export interface DailyData {

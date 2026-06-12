@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Settings, Platform, Language } from '../types';
+import type { Settings, Platform, Language, AIProvider } from '../types';
 import { encryptSimple, decryptSimple } from '../lib/utils';
 
 interface SettingsState extends Settings {
@@ -8,10 +8,15 @@ interface SettingsState extends Settings {
   setCreatorName: (name: string) => void;
   setNiche: (niche: string) => void;
   togglePlatform: (platform: Platform) => void;
+  setAiProvider: (provider: AIProvider) => void;
   setApiKey: (key: string) => void;
   setDefaultModel: (model: string) => void;
   setDefaultLanguage: (lang: Language) => void;
   setFollowerGoal: (platform: Platform, goal: number) => void;
+  setSupabaseUrl: (url: string) => void;
+  setSupabaseAnonKey: (key: string) => void;
+  setOllamaBaseUrl: (url: string) => void;
+  setOllamaModel: (model: string) => void;
   completeOnboarding: () => void;
   resetAll: () => void;
 }
@@ -20,6 +25,7 @@ const defaultSettings: Settings = {
   creatorName: '',
   niche: '',
   activePlatforms: ['facebook', 'instagram', 'tiktok'],
+  aiProvider: 'openrouter',
   apiKey: '',
   defaultModel: 'anthropic/claude-3.5-sonnet',
   defaultLanguage: 'frenchy',
@@ -30,6 +36,10 @@ const defaultSettings: Settings = {
     youtube: 1000,
     linkedin: 2000,
   },
+  supabaseUrl: '',
+  supabaseAnonKey: '',
+  ollamaBaseUrl: 'http://localhost:11434',
+  ollamaModel: 'llama3.1',
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -48,6 +58,7 @@ export const useSettingsStore = create<SettingsState>()(
               : [...state.activePlatforms, platform],
           };
         }),
+      setAiProvider: (provider) => set({ aiProvider: provider }),
       setApiKey: (key) => set({ apiKey: encryptSimple(key) }),
       setDefaultModel: (model) => set({ defaultModel: model }),
       setDefaultLanguage: (lang) => set({ defaultLanguage: lang }),
@@ -55,6 +66,10 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({
           followerGoals90d: { ...state.followerGoals90d, [platform]: goal },
         })),
+      setSupabaseUrl: (url) => set({ supabaseUrl: url }),
+      setSupabaseAnonKey: (key) => set({ supabaseAnonKey: key }),
+      setOllamaBaseUrl: (url) => set({ ollamaBaseUrl: url }),
+      setOllamaModel: (model) => set({ ollamaModel: model }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
       resetAll: () => set({ ...defaultSettings, hasCompletedOnboarding: false }),
     }),
@@ -64,10 +79,15 @@ export const useSettingsStore = create<SettingsState>()(
         creatorName: state.creatorName,
         niche: state.niche,
         activePlatforms: state.activePlatforms,
+        aiProvider: state.aiProvider,
         apiKey: state.apiKey,
         defaultModel: state.defaultModel,
         defaultLanguage: state.defaultLanguage,
         followerGoals90d: state.followerGoals90d,
+        supabaseUrl: state.supabaseUrl,
+        supabaseAnonKey: state.supabaseAnonKey,
+        ollamaBaseUrl: state.ollamaBaseUrl,
+        ollamaModel: state.ollamaModel,
         hasCompletedOnboarding: state.hasCompletedOnboarding,
       }),
     }

@@ -15,6 +15,7 @@ import {
   generateSeedOffers,
   generateSeedPersonas,
 } from './seed/initialData';
+import { isSupabaseConfigured } from './lib/supabase';
 import { SettingsPage } from './modules/Settings/SettingsPage';
 import { GeneratorPage } from './modules/Generator/GeneratorPage';
 import { CockpitPage } from './modules/Cockpit/CockpitPage';
@@ -28,10 +29,10 @@ export default function App() {
   const [currentView, setCurrentView] = useState('cockpit');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const { hasCompletedOnboarding, completeOnboarding } = useSettingsStore();
-  const { posts, addPost } = useContentStore();
-  const { lives, addLive } = useLiveStore();
-  const { phases, offers, personas, addPhase, addOffer, addPersona } = useStrategyStore();
-  useKPIStore();
+  const { posts, addPost, loadFromSupabase: loadPosts } = useContentStore();
+  const { lives, addLive, loadFromSupabase: loadLives } = useLiveStore();
+  const { phases, offers, personas, addPhase, addOffer, addPersona, loadFromSupabase: loadStrategy } = useStrategyStore();
+  const { loadFromSupabase: loadKPIs } = useKPIStore();
 
   // Check onboarding
   useEffect(() => {
@@ -40,25 +41,33 @@ export default function App() {
     }
   }, [hasCompletedOnboarding]);
 
-  // Seed data on first load
+  // Load from Supabase if configured, else seed data on first load
   useEffect(() => {
-    if (hasCompletedOnboarding && posts.length === 0) {
+    if (!hasCompletedOnboarding) return;
+    if (isSupabaseConfigured()) {
+      Promise.all([loadPosts(), loadLives(), loadStrategy(), loadKPIs()]).then(() => {
+        console.log('[App] Sync from Supabase complete');
+      });
+      return;
+    }
+    // Fallback: seed local data
+    if (posts.length === 0) {
       const seedPosts = generateSeedPosts();
       seedPosts.forEach((post) => addPost(post));
     }
-    if (hasCompletedOnboarding && lives.length === 0) {
+    if (lives.length === 0) {
       const seedLives = generateSeedLives();
       seedLives.forEach((live) => addLive(live));
     }
-    if (hasCompletedOnboarding && phases.length === 0) {
+    if (phases.length === 0) {
       const seedPhases = generateSeedPhases();
       seedPhases.forEach((phase) => addPhase(phase));
     }
-    if (hasCompletedOnboarding && offers.length === 0) {
+    if (offers.length === 0) {
       const seedOffers = generateSeedOffers();
       seedOffers.forEach((offer) => addOffer(offer));
     }
-    if (hasCompletedOnboarding && personas.length === 0) {
+    if (personas.length === 0) {
       const seedPersonas = generateSeedPersonas();
       seedPersonas.forEach((persona) => addPersona(persona));
     }

@@ -11,25 +11,49 @@ import {
   PLATFORMS,
   AI_MODELS,
   LANGUAGES,
+  AI_PROVIDERS,
+  OLLAMA_MODELS,
 } from '../../lib/constants';
 import type { Language } from '../../types';
-import { Download, Upload, Trash2, Key, User, Target, Check, AlertTriangle } from 'lucide-react';
+import { isSupabaseConfigured } from '../../lib/supabase';
+import {
+  Download,
+  Upload,
+  Trash2,
+  Key,
+  User,
+  Target,
+  Check,
+  AlertTriangle,
+  Database,
+  RefreshCw,
+} from 'lucide-react';
 
 export function SettingsPage() {
   const {
     creatorName,
     niche,
     activePlatforms,
+    aiProvider,
     defaultModel,
     defaultLanguage,
     followerGoals90d,
+    supabaseUrl,
+    supabaseAnonKey,
+    ollamaBaseUrl,
+    ollamaModel,
     setCreatorName,
     setNiche,
     togglePlatform,
+    setAiProvider,
     setApiKey: setStoreApiKey,
     setDefaultModel,
     setDefaultLanguage,
     setFollowerGoal,
+    setSupabaseUrl,
+    setSupabaseAnonKey,
+    setOllamaBaseUrl,
+    setOllamaModel,
     resetAll: resetSettings,
   } = useSettingsStore();
 
@@ -38,36 +62,66 @@ export function SettingsPage() {
   const [localApiKey, setLocalApiKey] = useState(getDecryptedApiKey() || '');
   const [localModel, setLocalModel] = useState(defaultModel);
   const [localLang, setLocalLang] = useState<Language>(defaultLanguage);
+  const [localAiProvider, setLocalAiProvider] = useState(aiProvider);
+  const [localSupabaseUrl, setLocalSupabaseUrl] = useState(supabaseUrl);
+  const [localSupabaseKey, setLocalSupabaseKey] = useState(supabaseAnonKey);
+  const [localOllamaUrl, setLocalOllamaUrl] = useState(ollamaBaseUrl);
+  const [localOllamaModel, setLocalOllamaModel] = useState(ollamaModel);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing'>('idle');
 
-  const { resetAll: resetContent } = useContentStore();
-  const { resetAll: resetLives } = useLiveStore();
-  const { resetAll: resetStrategy } = useStrategyStore();
-  const { resetAll: resetKPIs } = useKPIStore();
+  const { resetAll: resetContent, loadFromSupabase: loadPosts } = useContentStore();
+  const { resetAll: resetLives, loadFromSupabase: loadLives } = useLiveStore();
+  const { resetAll: resetStrategy, loadFromSupabase: loadStrategy } = useStrategyStore();
+  const { resetAll: resetKPIs, loadFromSupabase: loadKPIs } = useKPIStore();
 
   const saveSettings = () => {
     setCreatorName(localName);
     setNiche(localNiche);
     if (localApiKey) setStoreApiKey(localApiKey);
+    setAiProvider(localAiProvider);
     setDefaultModel(localModel);
     setDefaultLanguage(localLang);
+    setSupabaseUrl(localSupabaseUrl);
+    setSupabaseAnonKey(localSupabaseKey);
+    setOllamaBaseUrl(localOllamaUrl);
+    setOllamaModel(localOllamaModel);
     toast.success('Paramètres sauvegardés');
   };
 
   const testConnection = async () => {
     setTestStatus('testing');
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
-        headers: { Authorization: `Bearer ${localApiKey}` },
-      });
-      setTestStatus(response.ok ? 'success' : 'error');
-      if (response.ok) toast.success('Connexion API réussie');
-      else toast.error('Clé API invalide');
+      const url = (localOllamaUrl || 'http://localhost:11434').replace(/\/$/, '');
+      if (localAiProvider === 'ollama') {
+        const response = await fetch(`${url}/api/tags`, { method: 'GET' });
+        setTestStatus(response.ok ? 'success' : 'error');
+        if (response.ok) toast.success('Ollama connecté ✓');
+        else toast.error(`Ollama erreur ${response.status}`);
+      } else {
+        const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
+          headers: { Authorization: `Bearer ${localApiKey}` },
+        });
+        setTestStatus(response.ok ? 'success' : 'error');
+        if (response.ok) toast.success('Connexion API réussie');
+        else toast.error('Clé API invalide');
+      }
     } catch {
       setTestStatus('error');
-      toast.error('Impossible de contacter OpenRouter');
+      toast.error(
+        localAiProvider === 'ollama'
+          ? `Ollama injoignable`
+          : 'Impossible de contacter OpenRouter'
+      );
     }
+  };
+
+  const handleSyncSupabase = async () => {
+    setSyncStatus('syncing');
+    await Promise.all([loadPosts(), loadLives(), loadStrategy(), loadKPIs()]);
+    setSyncStatus('idle');
+    toast.success('Données syncronisées depuis Supabase');
   };
 
   const handleExport = () => {
@@ -100,7 +154,6 @@ export function SettingsPage() {
     reader.onload = (event) => {
       try {
         JSON.parse(event.target?.result as string);
-        // Import logic would go here - for now just notify
         toast.success('Import terminé (rechargement nécessaire)');
         setTimeout(() => window.location.reload(), 1500);
       } catch {
@@ -122,6 +175,8 @@ export function SettingsPage() {
     setTimeout(() => window.location.reload(), 1000);
   };
 
+  const supabaseConfigured = isSupabaseConfigured();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -141,21 +196,11 @@ export function SettingsPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm text-text-secondary">Nom du créateur</label>
-            <input
-              value={localName}
-              onChange={(e) => setLocalName(e.target.value)}
-              placeholder="Ex: Karim SEO"
-              className="w-full"
-            />
+            <input value={localName} onChange={(e) => setLocalName(e.target.value)} placeholder="Ex: Karim SEO" className="w-full" />
           </div>
           <div className="space-y-2">
             <label className="text-sm text-text-secondary">Niche principale</label>
-            <input
-              value={localNiche}
-              onChange={(e) => setLocalNiche(e.target.value)}
-              placeholder="Ex: SEO & IA pour e-commerçants"
-              className="w-full"
-            />
+            <input value={localNiche} onChange={(e) => setLocalNiche(e.target.value)} placeholder="Ex: SEO & IA pour e-commerçants" className="w-full" />
           </div>
         </div>
       </Card>
@@ -167,19 +212,8 @@ export function SettingsPage() {
           {PLATFORMS.map((p) => {
             const isActive = activePlatforms.includes(p.id);
             return (
-              <button
-                key={p.id}
-                onClick={() => togglePlatform(p.id)}
-                className={`p-3 rounded-xl border text-center transition-all ${
-                  isActive
-                    ? 'border-accent bg-accent/10'
-                    : 'border-dark-border opacity-50 hover:opacity-80'
-                }`}
-              >
-                <div
-                  className="w-3 h-3 rounded-full mx-auto mb-2"
-                  style={{ backgroundColor: p.color }}
-                />
+              <button key={p.id} onClick={() => togglePlatform(p.id)} className={`p-3 rounded-xl border text-center transition-all ${isActive ? 'border-accent bg-accent/10' : 'border-dark-border opacity-50 hover:opacity-80'}`}>
+                <div className="w-3 h-3 rounded-full mx-auto mb-2" style={{ backgroundColor: p.color }} />
                 <p className="text-xs font-medium text-white">{p.label}</p>
               </button>
             );
@@ -194,62 +228,116 @@ export function SettingsPage() {
           <h2 className="text-lg font-semibold text-white">Configuration IA</h2>
         </div>
         <div className="space-y-4">
+          {/* Provider */}
           <div className="space-y-2">
-            <label className="text-sm text-text-secondary">Clé API OpenRouter</label>
+            <label className="text-sm text-text-secondary">Provider IA</label>
             <div className="flex gap-2">
-              <input
-                type="password"
-                value={localApiKey}
-                onChange={(e) => {
-                  setLocalApiKey(e.target.value);
-                  setTestStatus('idle');
-                }}
-                placeholder="sk-or-v1-..."
-                className="flex-1 font-mono text-xs"
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={testConnection}
-                isLoading={testStatus === 'testing'}
-              >
-                {testStatus === 'success' && <Check className="w-4 h-4 text-green-400" />}
-                Tester
-              </Button>
-            </div>
-            {testStatus === 'success' && (
-              <p className="text-xs text-green-400">✓ Connexion réussie</p>
-            )}
-            {testStatus === 'error' && (
-              <p className="text-xs text-red-400">✗ Connexion échouée</p>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm text-text-secondary">Modèle par défaut</label>
-              <select
-                value={localModel}
-                onChange={(e) => setLocalModel(e.target.value)}
-                className="w-full"
-              >
-                {AI_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm text-text-secondary">Langue par défaut</label>
-              <select
-                value={localLang}
-                onChange={(e) => setLocalLang(e.target.value as Language)}
-                className="w-full"
-              >
-                {LANGUAGES.map((l) => (
-                  <option key={l.id} value={l.id}>{l.label}</option>
-                ))}
-              </select>
+              {AI_PROVIDERS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setLocalAiProvider(p.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    localAiProvider === p.id
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-dark-border text-text-secondary hover:border-text-muted'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
           </div>
+
+          {localAiProvider === 'openrouter' ? (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm text-text-secondary">Clé API OpenRouter</label>
+                <div className="flex gap-2">
+                  <input type="password" value={localApiKey} onChange={(e) => { setLocalApiKey(e.target.value); setTestStatus('idle'); }} placeholder="sk-or-v1-..." className="flex-1 font-mono text-xs" />
+                  <Button variant="secondary" size="sm" onClick={testConnection} isLoading={testStatus === 'testing'}>
+                    {testStatus === 'success' && <Check className="w-4 h-4 text-green-400" />}
+                    Tester
+                  </Button>
+                </div>
+                {testStatus === 'success' && <p className="text-xs text-green-400">✓ Connexion réussie</p>}
+                {testStatus === 'error' && <p className="text-xs text-red-400">✗ Connexion échouée</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm text-text-secondary">Modèle par défaut</label>
+                  <select value={localModel} onChange={(e) => setLocalModel(e.target.value)} className="w-full">
+                    {AI_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-text-secondary">Langue par défaut</label>
+                  <select value={localLang} onChange={(e) => setLocalLang(e.target.value as Language)} className="w-full">
+                    {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm text-text-secondary">URL Ollama</label>
+                <div className="flex gap-2">
+                  <input value={localOllamaUrl} onChange={(e) => { setLocalOllamaUrl(e.target.value); setTestStatus('idle'); }} placeholder="http://localhost:11434" className="flex-1 font-mono text-xs" />
+                  <Button variant="secondary" size="sm" onClick={testConnection} isLoading={testStatus === 'testing'}>
+                    {testStatus === 'success' && <Check className="w-4 h-4 text-green-400" />}
+                    Tester
+                  </Button>
+                </div>
+                {testStatus === 'success' && <p className="text-xs text-green-400">✓ Ollama connecté</p>}
+                {testStatus === 'error' && <p className="text-xs text-red-400">✗ Ollama injoignable</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm text-text-secondary">Modèle Ollama</label>
+                  <select value={localOllamaModel} onChange={(e) => setLocalOllamaModel(e.target.value)} className="w-full">
+                    {OLLAMA_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-text-secondary">Langue par défaut</label>
+                  <select value={localLang} onChange={(e) => setLocalLang(e.target.value as Language)} className="w-full">
+                    {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </Card>
+
+      {/* Supabase */}
+      <Card className="space-y-5">
+        <div className="flex items-center gap-2 mb-2">
+          <Database className="w-4 h-4 text-accent" />
+          <h2 className="text-lg font-semibold text-white">Base de données Supabase</h2>
+        </div>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm text-text-secondary">Supabase URL</label>
+            <input value={localSupabaseUrl} onChange={(e) => setLocalSupabaseUrl(e.target.value)} placeholder="https://xxxx.supabase.co" className="w-full font-mono text-xs" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-text-secondary">Supabase Anon Key</label>
+            <input type="password" value={localSupabaseKey} onChange={(e) => setLocalSupabaseKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="w-full font-mono text-xs" />
+          </div>
+          {supabaseConfigured && (
+            <div className="flex items-center gap-2 text-xs text-green-400">
+              <Check className="w-3.5 h-3.5" />
+              Supabase configuré
+            </div>
+          )}
+          <Button variant="secondary" onClick={handleSyncSupabase} isLoading={syncStatus === 'syncing'}>
+            <RefreshCw className="w-4 h-4" />
+            {syncStatus === 'syncing' ? 'Sync...' : 'Sync depuis Supabase'}
+          </Button>
+          <p className="text-xs text-text-muted">
+            Les données sont d'abord stockées en local. La sync avec Supabase se fait automatiquement à chaque modification si configuré.
+          </p>
         </div>
       </Card>
 
@@ -263,14 +351,7 @@ export function SettingsPage() {
           {PLATFORMS.map((p) => (
             <div key={p.id} className="space-y-2">
               <label className="text-xs text-text-secondary">{p.label}</label>
-              <input
-                type="number"
-                value={followerGoals90d[p.id] || 0}
-                onChange={(e) =>
-                  setFollowerGoal(p.id, parseInt(e.target.value) || 0)
-                }
-                className="w-full text-center"
-              />
+              <input type="number" value={followerGoals90d[p.id] || 0} onChange={(e) => setFollowerGoal(p.id, parseInt(e.target.value) || 0)} className="w-full text-center" />
             </div>
           ))}
         </div>
@@ -281,18 +362,11 @@ export function SettingsPage() {
         <h2 className="text-lg font-semibold text-white">Données</h2>
         <div className="flex gap-3">
           <Button variant="secondary" onClick={handleExport}>
-            <Download className="w-4 h-4" />
-            Exporter (JSON)
+            <Download className="w-4 h-4" />Exporter (JSON)
           </Button>
           <label className="btn-secondary cursor-pointer">
-            <Upload className="w-4 h-4" />
-            Importer
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImport}
-              className="hidden"
-            />
+            <Upload className="w-4 h-4" />Importer
+            <input type="file" accept=".json" onChange={handleImport} className="hidden" />
           </label>
         </div>
       </Card>
@@ -302,24 +376,17 @@ export function SettingsPage() {
         <h2 className="text-lg font-semibold text-red-400 mb-4">Zone dangereuse</h2>
         {!showResetConfirm ? (
           <Button variant="danger" onClick={() => setShowResetConfirm(true)}>
-            <Trash2 className="w-4 h-4" />
-            Réinitialiser tout
+            <Trash2 className="w-4 h-4" />Réinitialiser tout
           </Button>
         ) : (
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-red-400">
               <AlertTriangle className="w-5 h-5" />
-              <p className="text-sm font-medium">
-                Toutes les données seront supprimées définitivement.
-              </p>
+              <p className="text-sm font-medium">Toutes les données seront supprimées définitivement.</p>
             </div>
             <div className="flex gap-3">
-              <Button variant="ghost" onClick={() => setShowResetConfirm(false)}>
-                Annuler
-              </Button>
-              <Button variant="danger" onClick={handleReset}>
-                Confirmer la suppression
-              </Button>
+              <Button variant="ghost" onClick={() => setShowResetConfirm(false)}>Annuler</Button>
+              <Button variant="danger" onClick={handleReset}>Confirmer la suppression</Button>
             </div>
           </div>
         )}

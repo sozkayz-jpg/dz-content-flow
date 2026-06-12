@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 
 export function GeneratorPage() {
-  const { defaultLanguage, defaultModel } = useSettingsStore();
+  const { defaultLanguage, defaultModel, aiProvider, ollamaModel } = useSettingsStore();
   const { generateContent, isLoading } = useAI();
   const { addPost } = useContentStore();
 
@@ -110,7 +110,7 @@ export function GeneratorPage() {
         <h1 className="text-2xl font-bold text-white">✨ Générateur de contenu IA</h1>
         <div className="flex items-center gap-2 text-xs text-text-muted">
           <Zap className="w-3 h-3" />
-          {defaultModel.split('/')[1] || defaultModel}
+          {aiProvider === 'ollama' ? `Ollama: ${ollamaModel}` : defaultModel.split('/')[1] || defaultModel}
         </div>
       </div>
 

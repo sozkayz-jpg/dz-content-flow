@@ -66,12 +66,26 @@ export const LIVE_OBJECTIVES = [
   { id: 'launch' as const, label: 'Lancer' },
 ];
 
+export const AI_PROVIDERS = [
+  { id: 'openrouter' as const, label: 'OpenRouter (Cloud)' },
+  { id: 'ollama' as const, label: 'Ollama (Local)' },
+];
+
 export const AI_MODELS = [
   { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
   { id: 'openai/gpt-4o', label: 'GPT-4o' },
   { id: 'mistralai/mistral-large', label: 'Mistral Large' },
   { id: 'meta-llama/llama-3.1-70b-instruct', label: 'Llama 3.1 70B' },
   { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1' },
+];
+
+export const OLLAMA_MODELS = [
+  { id: 'llama3.1', label: 'Llama 3.1' },
+  { id: 'llama3', label: 'Llama 3' },
+  { id: 'mistral', label: 'Mistral' },
+  { id: 'gemma2', label: 'Gemma 2' },
+  { id: 'qwen2.5', label: 'Qwen 2.5' },
+  { id: 'phi3', label: 'Phi-3' },
 ];
 
 export const DARIJA_QUOTES = [

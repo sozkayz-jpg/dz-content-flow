@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Post } from '../types';
 import { generateId } from '../lib/utils';
+import { syncPostsToSupabase, loadPostsFromSupabase } from '../lib/supabase';
 
 interface ContentState {
   posts: Post[];
@@ -12,6 +13,7 @@ interface ContentState {
   addTag: (id: string, tag: string) => void;
   removeTag: (id: string, tag: string) => void;
   getPostById: (id: string) => Post | undefined;
+  loadFromSupabase: () => Promise<void>;
   resetAll: () => void;
 }
 
@@ -24,6 +26,7 @@ export const useContentStore = create<ContentState>()(
         const now = new Date().toISOString();
         const newPost: Post = { ...post, id, createdAt: now, updatedAt: now };
         set((state) => ({ posts: [newPost, ...state.posts] }));
+        syncPostsToSupabase(get().posts);
         return id;
       },
       updatePost: (id, updates) =>
@@ -32,30 +35,47 @@ export const useContentStore = create<ContentState>()(
             p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
           ),
         })),
-      deletePost: (id) =>
-        set((state) => ({ posts: state.posts.filter((p) => p.id !== id) })),
-      toggleFavorite: (id) =>
+      deletePost: (id) => {
+        set((state) => ({ posts: state.posts.filter((p) => p.id !== id) }));
+        syncPostsToSupabase(get().posts);
+      },
+      toggleFavorite: (id) => {
         set((state) => ({
           posts: state.posts.map((p) =>
             p.id === id ? { ...p, isFavorite: !p.isFavorite } : p
           ),
-        })),
-      addTag: (id, tag) =>
+        }));
+        syncPostsToSupabase(get().posts);
+      },
+      addTag: (id, tag) => {
         set((state) => ({
           posts: state.posts.map((p) =>
             p.id === id && !p.tags.includes(tag)
               ? { ...p, tags: [...p.tags, tag] }
               : p
           ),
-        })),
-      removeTag: (id, tag) =>
+        }));
+        syncPostsToSupabase(get().posts);
+      },
+      removeTag: (id, tag) => {
         set((state) => ({
           posts: state.posts.map((p) =>
             p.id === id ? { ...p, tags: p.tags.filter((t) => t !== tag) } : p
           ),
-        })),
+        }));
+        syncPostsToSupabase(get().posts);
+      },
       getPostById: (id) => get().posts.find((p) => p.id === id),
-      resetAll: () => set({ posts: [] }),
+      loadFromSupabase: async () => {
+        const remote = await loadPostsFromSupabase();
+        if (remote && remote.length > 0) {
+          set({ posts: remote });
+        }
+      },
+      resetAll: () => {
+        set({ posts: [] });
+        syncPostsToSupabase([]);
+      },
     }),
     { name: 'dz-content' }
   )

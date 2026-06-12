@@ -24,61 +24,52 @@ interface UseAIOptions {
 export function useAI() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { creatorName, defaultModel } = useSettingsStore();
+  const { creatorName, aiProvider, defaultModel, ollamaBaseUrl, ollamaModel } = useSettingsStore();
 
-  const generateContent = async (options: UseAIOptions): Promise<GeneratedContent> => {
-    setIsLoading(true);
-    setError(null);
+  const buildPrompt = (options: UseAIOptions) => {
+    const platformLabels: Record<Platform, string> = {
+      facebook: 'Facebook',
+      instagram: 'Instagram',
+      tiktok: 'TikTok',
+      youtube: 'YouTube',
+      linkedin: 'LinkedIn',
+    };
 
-    try {
-      const apiKey = getDecryptedApiKey();
-      if (!apiKey) {
-        throw new Error('Clé API OpenRouter non configurée. Va dans Paramètres.');
-      }
+    const typeLabels: Record<ContentType, string> = {
+      text: 'post texte',
+      carousel: 'carousel (liste de slides)',
+      reel: 'Reel/Short (script)',
+      thread: 'thread',
+      article: 'article LinkedIn',
+    };
 
-      const systemPrompt = SYSTEM_PROMPT.replace('{{CREATOR_NAME}}', creatorName || 'le créateur');
+    const themeLabels: Record<Theme, string> = {
+      migration: 'Migration FB → Site Web',
+      seo: 'SEO pour Algériens',
+      ai: 'IA Agentique',
+      ecommerce: 'E-commerce DZ',
+      personal_brand: 'Personal Branding',
+      success_story: 'Success Story',
+      myth: 'Mythe à briser',
+      advice: 'Conseil pratique',
+    };
 
-      const platformLabels: Record<Platform, string> = {
-        facebook: 'Facebook',
-        instagram: 'Instagram',
-        tiktok: 'TikTok',
-        youtube: 'YouTube',
-        linkedin: 'LinkedIn',
-      };
+    const toneLabels: Record<Tone, string> = {
+      educational: 'éducatif',
+      inspiring: 'inspirant',
+      provocative: 'provocateur',
+      storytelling: 'storytelling',
+    };
 
-      const typeLabels: Record<ContentType, string> = {
-        text: 'post texte',
-        carousel: 'carousel (liste de slides)',
-        reel: 'Reel/Short (script)',
-        thread: 'thread',
-        article: 'article LinkedIn',
-      };
+    const languageLabels: Record<Language, string> = {
+      darija: 'arabe dialectal algérien (darija)',
+      french: 'français',
+      frenchy: 'français avec expressions algériennes (mixte darija/français)',
+    };
 
-      const themeLabels: Record<Theme, string> = {
-        migration: 'Migration FB → Site Web',
-        seo: 'SEO pour Algériens',
-        ai: 'IA Agentique',
-        ecommerce: 'E-commerce DZ',
-        personal_brand: 'Personal Branding',
-        success_story: 'Success Story',
-        myth: 'Mythe à briser',
-        advice: 'Conseil pratique',
-      };
+    const systemPrompt = SYSTEM_PROMPT.replace('{{CREATOR_NAME}}', creatorName || 'le créateur');
 
-      const toneLabels: Record<Tone, string> = {
-        educational: 'éducatif',
-        inspiring: 'inspirant',
-        provocative: 'provocateur',
-        storytelling: 'storytelling',
-      };
-
-      const languageLabels: Record<Language, string> = {
-        darija: 'arabe dialectal algérien (darija)',
-        french: 'français',
-        frenchy: 'français avec expressions algériennes (mixte darija/français)',
-      };
-
-      const userPrompt = `Crée un ${typeLabels[options.type]} pour ${platformLabels[options.platform]}.
+    const userPrompt = `Crée un ${typeLabels[options.type]} pour ${platformLabels[options.platform]}.
 Thématique: ${themeLabels[options.theme]}
 Ton: ${toneLabels[options.tone]}
 Langue: ${languageLabels[options.language]}
@@ -94,48 +85,102 @@ Réponds EXACTEMENT au format JSON suivant (pas de markdown, pas de texte avant/
   "engagementScore": 85
 }`;
 
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-          'HTTP-Referer': window.location.origin,
-          'X-Title': 'DZ Content Flow',
-        },
-        body: JSON.stringify({
-          model: defaultModel,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
+    return { systemPrompt, userPrompt };
+  };
+
+  const parseResponse = (content: string): GeneratedContent => {
+    const jsonStr = content.replace(/```json?\n?|```/g, '').trim();
+    const parsed = JSON.parse(jsonStr);
+    return {
+      hook: parsed.hook || '',
+      body: parsed.body || '',
+      cta: parsed.cta || '',
+      hashtags: parsed.hashtags || [],
+      recommendedHour: parsed.recommendedHour || '19:00',
+      engagementScore: typeof parsed.engagementScore === 'number' ? parsed.engagementScore : 75,
+    };
+  };
+
+  /* ───── OpenRouter ───── */
+  const generateViaOpenRouter = async (options: UseAIOptions): Promise<GeneratedContent> => {
+    const apiKey = getDecryptedApiKey();
+    if (!apiKey) throw new Error('Clé API OpenRouter non configurée. Va dans Paramètres.');
+
+    const { systemPrompt, userPrompt } = buildPrompt(options);
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'DZ Content Flow',
+      },
+      body: JSON.stringify({
+        model: defaultModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.8,
+        max_tokens: 2000,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error?.message || `Erreur API: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error("Réponse vide de l'API");
+    return parseResponse(content);
+  };
+
+  /* ───── Ollama ───── */
+  const generateViaOllama = async (options: UseAIOptions): Promise<GeneratedContent> => {
+    const url = (ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '');
+    const model = ollamaModel || 'llama3.1';
+
+    const { systemPrompt, userPrompt } = buildPrompt(options);
+
+    const response = await fetch(`${url}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        system: systemPrompt,
+        prompt: userPrompt,
+        stream: false,
+        format: 'json',
+        options: {
           temperature: 0.8,
-          max_tokens: 2000,
-        }),
-      });
+          num_predict: 2000,
+        },
+      }),
+    });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error?.message || `Erreur API: ${response.status}`);
-      }
+    if (!response.ok) {
+      throw new Error(`Erreur Ollama: ${response.status} — Vérifie qu'Ollama tourne sur ${url}`);
+    }
 
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error('Réponse vide de l\'API');
-      }
+    const data = await response.json();
+    const content = data.response || data.message?.content || '';
+    if (!content) throw new Error("Réponse vide d'Ollama");
+    return parseResponse(content);
+  };
 
-      // Clean JSON from markdown code blocks
-      const jsonStr = content.replace(/```json?\n?|```/g, '').trim();
-      const parsed = JSON.parse(jsonStr);
-
-      return {
-        hook: parsed.hook || '',
-        body: parsed.body || '',
-        cta: parsed.cta || '',
-        hashtags: parsed.hashtags || [],
-        recommendedHour: parsed.recommendedHour || '19:00',
-        engagementScore: typeof parsed.engagementScore === 'number' ? parsed.engagementScore : 75,
-      };
+  /* ───── Public API ───── */
+  const generateContent = async (options: UseAIOptions): Promise<GeneratedContent> => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result =
+        aiProvider === 'ollama'
+          ? await generateViaOllama(options)
+          : await generateViaOpenRouter(options);
+      return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erreur inconnue';
       setError(msg);
@@ -146,19 +191,24 @@ Réponds EXACTEMENT au format JSON suivant (pas de markdown, pas de texte avant/
   };
 
   const testConnection = async (): Promise<{ success: boolean; message: string }> => {
+    if (aiProvider === 'ollama') {
+      const url = (ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '');
+      try {
+        const response = await fetch(`${url}/api/tags`, { method: 'GET' });
+        if (response.ok) return { success: true, message: 'Ollama connecté ✓' };
+        return { success: false, message: `Ollama erreur ${response.status}` };
+      } catch {
+        return { success: false, message: `Ollama injoignable sur ${url}` };
+      }
+    }
+
     try {
       const apiKey = getDecryptedApiKey();
-      if (!apiKey) {
-        return { success: false, message: 'Aucune clé API configurée' };
-      }
-
+      if (!apiKey) return { success: false, message: 'Aucune clé API configurée' };
       const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
-
-      if (response.ok) {
-        return { success: true, message: 'Connexion réussie ✓' };
-      }
+      if (response.ok) return { success: true, message: 'Connexion réussie ✓' };
       return { success: false, message: `Clé invalide (${response.status})` };
     } catch {
       return { success: false, message: 'Impossible de contacter OpenRouter' };
