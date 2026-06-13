@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { format } from 'date-fns';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { PlatformBadge } from '../../components/ui/PlatformBadge';
@@ -20,20 +22,21 @@ import type {
   Theme,
   Tone,
   Language,
-  PostStatus,
 } from '../../types';
 import {
   Sparkles,
   Copy,
-  Save,
   RefreshCw,
   Clock,
   TrendingUp,
   Hash,
   Zap,
+  Calendar,
+  Send,
 } from 'lucide-react';
 
 export function GeneratorPage() {
+  const navigate = useNavigate();
   const { defaultLanguage, defaultModel, aiProvider, ollamaModel } = useSettingsStore();
   const { generateContent, isLoading } = useAI();
   const { addPost } = useContentStore();
@@ -52,7 +55,9 @@ export function GeneratorPage() {
     recommendedHour: string;
     engagementScore: number;
   } | null>(null);
-  const [savedPostId, setSavedPostId] = useState<string | null>(null);
+
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const [scheduleDate, setScheduleDate] = useState(todayStr);
 
   const handleGenerate = async () => {
     try {
@@ -65,29 +70,41 @@ export function GeneratorPage() {
         context: context || undefined,
       });
       setGenerated(result);
-      setSavedPostId(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur de génération');
     }
   };
 
-  const handleSave = () => {
+  const createPost = (status: 'scheduled' | 'published') => {
     if (!generated) return;
-    const id = addPost({
+    const date = status === 'published' ? new Date() : new Date(scheduleDate);
+    const isoDate = new Date(
+      date.toDateString() + 'T' + (generated.recommendedHour || '19:00')
+    ).toISOString();
+
+    addPost({
       platform,
       type,
       theme,
       tone,
       language,
       context,
-      status: 'written' as PostStatus,
+      status,
+      scheduledDate: isoDate,
       content: generated,
       isFavorite: false,
       tags: [],
       title: generated.hook.slice(0, 60),
     });
-    setSavedPostId(id);
-    toast.success('Post sauvegardé dans la bibliothèque');
+
+    if (status === 'published') {
+      toast.success('Post publié ! 🔥 Streak mis à jour.');
+    } else {
+      toast.success(`Post planifié le ${format(date, 'dd/MM/yyyy')}`);
+      navigate('/calendar');
+    }
+
+    setGenerated(null);
   };
 
   const handleCopy = () => {
@@ -306,25 +323,48 @@ export function GeneratorPage() {
                   </div>
                 </Card>
 
-                {/* Actions */}
-                <div className="flex gap-3">
-                  <Button variant="secondary" onClick={handleCopy}>
-                    <Copy className="w-4 h-4" />
-                    Copier
-                  </Button>
-                  <Button
-                    variant={savedPostId ? 'ghost' : 'primary'}
-                    onClick={handleSave}
-                    disabled={!!savedPostId}
-                  >
-                    <Save className="w-4 h-4" />
-                    {savedPostId ? 'Sauvegardé ✓' : 'Sauvegarder'}
-                  </Button>
-                  <Button variant="ghost" onClick={handleRegenerate}>
-                    <RefreshCw className="w-4 h-4" />
-                    Régénérer
-                  </Button>
-                </div>
+                {/* Planification directe */}
+                <Card className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-accent" />
+                    <h3 className="text-sm font-semibold text-white">Publication</h3>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="date"
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="text-sm py-2"
+                    />
+                    <span className="text-xs text-text-muted">à {generated.recommendedHour || '19:00'}</span>
+                  </div>
+                  <div className="flex gap-3 pt-1">
+                    <Button variant="secondary" onClick={handleCopy}>
+                      <Copy className="w-4 h-4" />
+                      Copier
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={handleRegenerate}
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Régénérer
+                    </Button>
+                  </div>
+                  <div className="flex gap-3 pt-2 border-t border-dark-border">
+                    <Button
+                      variant="secondary"
+                      onClick={() => createPost('scheduled')}
+                    >
+                      <Calendar className="w-4 h-4" />
+                      Planifier
+                    </Button>
+                    <Button onClick={() => createPost('published')}>
+                      <Send className="w-4 h-4" />
+                      Publier maintenant
+                    </Button>
+                  </div>
+                </Card>
               </motion.div>
             ) : (
               <motion.div
