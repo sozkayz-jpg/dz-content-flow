@@ -1,3 +1,4 @@
+import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { VIEW_LABELS } from '../../lib/constants';
 import {
@@ -11,11 +12,6 @@ import {
   Settings,
 } from 'lucide-react';
 
-interface SidebarProps {
-  currentView: string;
-  onNavigate: (view: string) => void;
-}
-
 const navItems = [
   { id: 'cockpit', label: VIEW_LABELS.cockpit, icon: Home, shortcut: '1' },
   { id: 'calendar', label: VIEW_LABELS.calendar, icon: CalendarDays, shortcut: 'c' },
@@ -26,7 +22,10 @@ const navItems = [
   { id: 'kpis', label: VIEW_LABELS.kpis, icon: BarChart3, shortcut: 'k' },
 ];
 
-export function Sidebar({ currentView, onNavigate }: SidebarProps) {
+export function Sidebar() {
+  const location = useLocation();
+  const currentView = location.pathname.replace('/', '') || 'cockpit';
+
   return (
     <aside className="w-64 h-screen fixed left-0 top-0 bg-dark-card border-r border-dark-border flex flex-col z-50">
       <div className="p-5 border-b border-dark-border">
@@ -46,9 +45,9 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
           const Icon = item.icon;
           const isActive = currentView === item.id;
           return (
-            <button
+            <Link
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              to={`/${item.id}`}
               className={cn(
                 'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 text-left',
                 isActive
@@ -61,14 +60,14 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
               <span className="text-[10px] text-text-muted font-mono opacity-60">
                 {item.shortcut}
               </span>
-            </button>
+            </Link>
           );
         })}
       </nav>
 
       <div className="p-3 border-t border-dark-border">
-        <button
-          onClick={() => onNavigate('settings')}
+        <Link
+          to="/settings"
           className={cn(
             'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 text-left',
             currentView === 'settings'
@@ -78,7 +77,7 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
         >
           <Settings className="w-4 h-4" />
           <span className="flex-1">{VIEW_LABELS.settings}</span>
-        </button>
+        </Link>
       </div>
     </aside>
   );

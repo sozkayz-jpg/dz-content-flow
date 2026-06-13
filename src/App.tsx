@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { Suspense, lazy, useState, useEffect, useRef } from 'react';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { Layout } from './components/layout/Layout';
 import { OnboardingWizard } from './components/shared/OnboardingWizard';
@@ -8,6 +9,7 @@ import { useLiveStore } from './stores/liveStore';
 import { useStrategyStore } from './stores/strategyStore';
 import { useKPIStore } from './stores/kpiStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { isSupabaseConfigured } from './lib/supabase';
 import {
   generateSeedPosts,
   generateSeedLives,
@@ -15,69 +17,113 @@ import {
   generateSeedOffers,
   generateSeedPersonas,
 } from './seed/initialData';
-import { isSupabaseConfigured } from './lib/supabase';
-import { SettingsPage } from './modules/Settings/SettingsPage';
-import { GeneratorPage } from './modules/Generator/GeneratorPage';
-import { CockpitPage } from './modules/Cockpit/CockpitPage';
-import { CalendarPage } from './modules/Calendar/CalendarPage';
-import { LivePlannerPage } from './modules/LivePlanner/LivePlannerPage';
-import { LibraryPage } from './modules/Library/LibraryPage';
-import { StrategyPage } from './modules/Strategy/StrategyPage';
-import { KPIsPage } from './modules/KPIs/KPIsPage';
+
+/* ───── Lazy-loaded pages ───── */
+const SettingsPage = lazy(() =>
+  import('./modules/Settings/SettingsPage').then((m) => ({ default: m.SettingsPage }))
+);
+const GeneratorPage = lazy(() =>
+  import('./modules/Generator/GeneratorPage').then((m) => ({ default: m.GeneratorPage }))
+);
+const CockpitPage = lazy(() =>
+  import('./modules/Cockpit/CockpitPage').then((m) => ({ default: m.CockpitPage }))
+);
+const CalendarPage = lazy(() =>
+  import('./modules/Calendar/CalendarPage').then((m) => ({ default: m.CalendarPage }))
+);
+const LivePlannerPage = lazy(() =>
+  import('./modules/LivePlanner/LivePlannerPage').then((m) => ({ default: m.LivePlannerPage }))
+);
+const LibraryPage = lazy(() =>
+  import('./modules/Library/LibraryPage').then((m) => ({ default: m.LibraryPage }))
+);
+const StrategyPage = lazy(() =>
+  import('./modules/Strategy/StrategyPage').then((m) => ({ default: m.StrategyPage }))
+);
+const KPIsPage = lazy(() =>
+  import('./modules/KPIs/KPIsPage').then((m) => ({ default: m.KPIsPage }))
+);
+
+function LoadingFallback() {
+  return (
+    <div className="flex items-center justify-center h-[60vh]">
+      <div className="text-text-secondary animate-pulse">Chargement...</div>
+    </div>
+  );
+}
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
+function AppRoutes() {
+  useKeyboardShortcuts();
+
+  return (
+    <Layout>
+      <ScrollToTop />
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/cockpit" replace />} />
+          <Route path="/cockpit" element={<CockpitPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/generator" element={<GeneratorPage />} />
+          <Route path="/lives" element={<LivePlannerPage />} />
+          <Route path="/library" element={<LibraryPage />} />
+          <Route path="/strategy" element={<StrategyPage />} />
+          <Route path="/kpis" element={<KPIsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Routes>
+      </Suspense>
+    </Layout>
+  );
+}
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('cockpit');
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const { hasCompletedOnboarding, completeOnboarding } = useSettingsStore();
-  const { posts, addPost, loadFromSupabase: loadPosts } = useContentStore();
-  const { lives, addLive, loadFromSupabase: loadLives } = useLiveStore();
-  const { phases, offers, personas, addPhase, addOffer, addPersona, loadFromSupabase: loadStrategy } = useStrategyStore();
-  const { loadFromSupabase: loadKPIs } = useKPIStore();
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => !useSettingsStore.getState().hasCompletedOnboarding
+  );
+  const seeded = useRef(false);
 
-  // Check onboarding
+  /* ── Init data (Supabase or seed) ── */
   useEffect(() => {
-    if (!hasCompletedOnboarding) {
-      setShowOnboarding(true);
-    }
-  }, [hasCompletedOnboarding]);
+    if (!hasCompletedOnboarding || seeded.current) return;
+    seeded.current = true;
 
-  // Load from Supabase if configured, else seed data on first load
-  useEffect(() => {
-    if (!hasCompletedOnboarding) return;
     if (isSupabaseConfigured()) {
-      Promise.all([loadPosts(), loadLives(), loadStrategy(), loadKPIs()]).then(() => {
+      Promise.all([
+        useContentStore.getState().loadFromSupabase(),
+        useLiveStore.getState().loadFromSupabase(),
+        useStrategyStore.getState().loadFromSupabase(),
+        useKPIStore.getState().loadFromSupabase(),
+      ]).then(() => {
         console.log('[App] Sync from Supabase complete');
       });
       return;
     }
-    // Fallback: seed local data
-    if (posts.length === 0) {
-      const seedPosts = generateSeedPosts();
-      seedPosts.forEach((post) => addPost(post));
+
+    // Fallback: seed local data if empty
+    if (useContentStore.getState().posts.length === 0) {
+      generateSeedPosts().forEach((post) => useContentStore.getState().addPost(post));
     }
-    if (lives.length === 0) {
-      const seedLives = generateSeedLives();
-      seedLives.forEach((live) => addLive(live));
+    if (useLiveStore.getState().lives.length === 0) {
+      generateSeedLives().forEach((live) => useLiveStore.getState().addLive(live));
     }
-    if (phases.length === 0) {
-      const seedPhases = generateSeedPhases();
-      seedPhases.forEach((phase) => addPhase(phase));
+    if (useStrategyStore.getState().phases.length === 0) {
+      generateSeedPhases().forEach((phase) => useStrategyStore.getState().addPhase(phase));
     }
-    if (offers.length === 0) {
-      const seedOffers = generateSeedOffers();
-      seedOffers.forEach((offer) => addOffer(offer));
+    if (useStrategyStore.getState().offers.length === 0) {
+      generateSeedOffers().forEach((offer) => useStrategyStore.getState().addOffer(offer));
     }
-    if (personas.length === 0) {
-      const seedPersonas = generateSeedPersonas();
-      seedPersonas.forEach((persona) => addPersona(persona));
+    if (useStrategyStore.getState().personas.length === 0) {
+      generateSeedPersonas().forEach((persona) => useStrategyStore.getState().addPersona(persona));
     }
   }, [hasCompletedOnboarding]);
-
-  const handleNavigate = useCallback((view: string) => {
-    setCurrentView(view);
-  }, []);
-
-  useKeyboardShortcuts(handleNavigate);
 
   const handleOnboardingComplete = () => {
     completeOnboarding();
@@ -102,34 +148,11 @@ export default function App() {
     );
   }
 
-  const renderView = () => {
-    switch (currentView) {
-      case 'cockpit':
-        return <CockpitPage />;
-      case 'calendar':
-        return <CalendarPage />;
-      case 'generator':
-        return <GeneratorPage />;
-      case 'lives':
-        return <LivePlannerPage />;
-      case 'library':
-        return <LibraryPage />;
-      case 'strategy':
-        return <StrategyPage />;
-      case 'kpis':
-        return <KPIsPage />;
-      case 'settings':
-        return <SettingsPage />;
-      default:
-        return <CockpitPage />;
-    }
-  };
-
   return (
     <>
-      <Layout currentView={currentView} onNavigate={handleNavigate}>
-        {renderView()}
-      </Layout>
+      <HashRouter>
+        <AppRoutes />
+      </HashRouter>
       <Toaster
         position="bottom-right"
         toastOptions={{

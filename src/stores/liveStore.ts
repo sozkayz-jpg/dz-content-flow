@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Live } from '../types';
 import { generateId } from '../lib/utils';
-import { syncLivesToSupabase, loadLivesFromSupabase } from '../lib/supabase';
+import { scheduleLivesSync } from '../lib/syncManager';
+import { loadLivesFromSupabase } from '../lib/supabase';
 
 interface LiveState {
   lives: Live[];
@@ -22,7 +23,7 @@ export const useLiveStore = create<LiveState>()(
         const id = generateId();
         const newLive: Live = { ...live, id, createdAt: new Date().toISOString() };
         set((state) => ({ lives: [newLive, ...state.lives] }));
-        syncLivesToSupabase(get().lives);
+        scheduleLivesSync(() => get().lives);
         return id;
       },
       updateLive: (id, updates) => {
@@ -31,11 +32,11 @@ export const useLiveStore = create<LiveState>()(
             l.id === id ? { ...l, ...updates } : l
           ),
         }));
-        syncLivesToSupabase(get().lives);
+        scheduleLivesSync(() => get().lives);
       },
       deleteLive: (id) => {
         set((state) => ({ lives: state.lives.filter((l) => l.id !== id) }));
-        syncLivesToSupabase(get().lives);
+        scheduleLivesSync(() => get().lives);
       },
       toggleFavorite: (id) => {
         set((state) => ({
@@ -43,7 +44,7 @@ export const useLiveStore = create<LiveState>()(
             l.id === id ? { ...l, isFavorite: !l.isFavorite } : l
           ),
         }));
-        syncLivesToSupabase(get().lives);
+        scheduleLivesSync(() => get().lives);
       },
       loadFromSupabase: async () => {
         const remote = await loadLivesFromSupabase();
@@ -53,7 +54,7 @@ export const useLiveStore = create<LiveState>()(
       },
       resetAll: () => {
         set({ lives: [] });
-        syncLivesToSupabase([]);
+        scheduleLivesSync(() => []);
       },
     }),
     { name: 'dz-lives' }

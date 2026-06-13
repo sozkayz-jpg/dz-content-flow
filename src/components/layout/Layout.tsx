@@ -3,14 +3,12 @@ import { Sidebar } from './Sidebar';
 
 interface LayoutProps {
   children: ReactNode;
-  currentView: string;
-  onNavigate: (view: string) => void;
 }
 
-export function Layout({ children, currentView, onNavigate }: LayoutProps) {
+export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-dark-bg flex">
-      <Sidebar currentView={currentView} onNavigate={onNavigate} />
+      <Sidebar />
       <main className="flex-1 ml-64 min-h-screen">
         <div className="max-w-6xl mx-auto p-6">{children}</div>
       </main>

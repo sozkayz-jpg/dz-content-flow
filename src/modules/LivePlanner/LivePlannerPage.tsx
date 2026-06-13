@@ -7,7 +7,9 @@ import { useLiveStore } from '../../stores/liveStore';
 import { useSettingsStore, getDecryptedApiKey } from '../../stores/settingsStore';
 import { SYSTEM_PROMPT } from '../../lib/constants';
 import { LIVE_PLATFORMS, LIVE_DURATIONS, LIVE_OBJECTIVES } from '../../lib/constants';
-import type { LivePlatform, LiveDuration, LiveObjective } from '../../types';
+import type { LivePlatform, LiveDuration, LiveObjective, Live } from '../../types';
+
+type GeneratedPlan = NonNullable<Live['content']>;
 import { Video, Clock, Target, Sparkles, Copy, Save, Mic, Users, MessageSquare, CheckSquare } from 'lucide-react';
 
 export function LivePlannerPage() {
@@ -17,7 +19,7 @@ export function LivePlannerPage() {
   const [theme, setTheme] = useState('');
   const [duration, setDuration] = useState<LiveDuration>('60');
   const [objective, setObjective] = useState<LiveObjective>('educate');
-  const [generated, setGenerated] = useState<any>(null);
+  const [generated, setGenerated] = useState<Live['content'] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGenerate = async () => {
@@ -102,7 +104,7 @@ Réponds au format JSON exact suivant:
       theme,
       duration,
       objective,
-      content: generated,
+      content: generated ?? undefined,
       isFavorite: false,
     });
     toast.success('Live sauvegardé');
@@ -192,7 +194,7 @@ Réponds au format JSON exact suivant:
                     <h3 className="text-sm font-semibold text-white">Plan minute par minute</h3>
                   </div>
                   <div className="space-y-2">
-                    {generated.minutePlan?.map((item: any, i: number) => (
+                    {generated.minutePlan?.map((item: GeneratedPlan['minutePlan'][number], i: number) => (
                       <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-dark-hover">
                         <span className="text-xs font-mono text-accent w-12">M{item.minute}</span>
                         <span className="text-sm text-white flex-1">{item.topic}</span>
@@ -240,7 +242,7 @@ Réponds au format JSON exact suivant:
                     <h3 className="text-sm font-semibold text-white">FAQ anticipée</h3>
                   </div>
                   <div className="space-y-2">
-                    {generated.faq?.map((item: any, i: number) => (
+                    {generated.faq?.map((item: GeneratedPlan['faq'][number], i: number) => (
                       <div key={i} className="p-2 rounded-lg bg-dark-hover">
                         <p className="text-sm font-medium text-white">Q: {item.question}</p>
                         <p className="text-xs text-text-secondary mt-1">R: {item.answer}</p>

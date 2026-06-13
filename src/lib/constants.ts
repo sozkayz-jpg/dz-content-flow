@@ -77,6 +77,7 @@ export const AI_MODELS = [
   { id: 'mistralai/mistral-large', label: 'Mistral Large' },
   { id: 'meta-llama/llama-3.1-70b-instruct', label: 'Llama 3.1 70B' },
   { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1' },
+  { id: 'openrouter/free', label: 'OpenRouter Free' },
 ];
 
 export const OLLAMA_MODELS = [

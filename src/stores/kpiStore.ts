@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { WeeklyKPI } from '../types';
-import { syncKPIToSupabase, loadKPIsFromSupabase } from '../lib/supabase';
+import { scheduleKPISync } from '../lib/syncManager';
+import { loadKPIsFromSupabase } from '../lib/supabase';
 
 interface KPIState {
   weeklyData: WeeklyKPI[];
@@ -24,7 +25,7 @@ export const useKPIStore = create<KPIState>()(
                 w.week === data.week ? { ...w, ...data } : w
               )
             : [...state.weeklyData, data];
-          syncKPIToSupabase(next);
+          scheduleKPISync(() => next);
           return { weeklyData: next };
         }),
       updateWeek: (week, data) => {
@@ -33,13 +34,13 @@ export const useKPIStore = create<KPIState>()(
             w.week === week ? { ...w, ...data } : w
           ),
         }));
-        syncKPIToSupabase(get().weeklyData);
+        scheduleKPISync(() => get().weeklyData);
       },
       deleteWeek: (week) => {
         set((state) => ({
           weeklyData: state.weeklyData.filter((w) => w.week !== week),
         }));
-        syncKPIToSupabase(get().weeklyData);
+        scheduleKPISync(() => get().weeklyData);
       },
       loadFromSupabase: async () => {
         const remote = await loadKPIsFromSupabase();
@@ -49,7 +50,7 @@ export const useKPIStore = create<KPIState>()(
       },
       resetAll: () => {
         set({ weeklyData: [] });
-        syncKPIToSupabase([]);
+        scheduleKPISync(() => []);
       },
     }),
     { name: 'dz-kpis' }

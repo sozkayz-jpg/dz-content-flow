@@ -90,7 +90,8 @@ export function LibraryPage() {
     toast.success('Export MD réussi');
   };
 
-  const handleRecycle = (_postId: string) => {
+  const handleRecycle = (postId: string) => {
+    void postId;
     // For now just notify, full recycle would call AI again
     toast.info('Fonctionnalité de recyclage à venir');
   };

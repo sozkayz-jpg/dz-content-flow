@@ -1,10 +1,17 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { VIEW_SHORTCUTS } from '../lib/constants';
 
-export function useKeyboardShortcuts(onNavigate: (view: string) => void) {
+export function useKeyboardShortcuts() {
+  const navigate = useNavigate();
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
         return;
       }
       const key = e.key.toLowerCase();
@@ -16,10 +23,10 @@ export function useKeyboardShortcuts(onNavigate: (view: string) => void) {
       const view = VIEW_SHORTCUTS[key];
       if (view) {
         e.preventDefault();
-        onNavigate(view);
+        navigate('/' + view);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onNavigate]);
+  }, [navigate]);
 }

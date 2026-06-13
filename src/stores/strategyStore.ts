@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Phase, Offer, Persona } from '../types';
 import { generateId } from '../lib/utils';
-import { syncStrategyToSupabase, loadStrategyFromSupabase } from '../lib/supabase';
+import { scheduleStrategySync } from '../lib/syncManager';
+import { loadStrategyFromSupabase } from '../lib/supabase';
 
 interface StrategyState {
   phases: Phase[];
@@ -14,6 +15,9 @@ interface StrategyState {
   updatePhase: (id: string, updates: Partial<Phase>) => void;
   updateOffer: (id: string, updates: Partial<Offer>) => void;
   updatePersona: (id: string, updates: Partial<Persona>) => void;
+  deletePhase: (id: string) => void;
+  deleteOffer: (id: string) => void;
+  deletePersona: (id: string) => void;
   loadFromSupabase: () => Promise<void>;
   resetAll: () => void;
 }
@@ -28,21 +32,24 @@ export const useStrategyStore = create<StrategyState>()(
         const id = generateId();
         const newPhase = { ...phase, id };
         set((state) => ({ phases: [...state.phases, newPhase] }));
-        syncStrategyToSupabase(get().phases, get().offers, get().personas);
+        const { phases, offers, personas } = get();
+        scheduleStrategySync(() => ({ phases, offers, personas }));
         return id;
       },
       addOffer: (offer) => {
         const id = generateId();
         const newOffer = { ...offer, id };
         set((state) => ({ offers: [...state.offers, newOffer] }));
-        syncStrategyToSupabase(get().phases, get().offers, get().personas);
+        const { phases, offers, personas } = get();
+        scheduleStrategySync(() => ({ phases, offers, personas }));
         return id;
       },
       addPersona: (persona) => {
         const id = generateId();
         const newPersona = { ...persona, id };
         set((state) => ({ personas: [...state.personas, newPersona] }));
-        syncStrategyToSupabase(get().phases, get().offers, get().personas);
+        const { phases, offers, personas } = get();
+        scheduleStrategySync(() => ({ phases, offers, personas }));
         return id;
       },
       updatePhase: (id, updates) => {
@@ -51,7 +58,8 @@ export const useStrategyStore = create<StrategyState>()(
             p.id === id ? { ...p, ...updates } : p
           ),
         }));
-        syncStrategyToSupabase(get().phases, get().offers, get().personas);
+        const { phases, offers, personas } = get();
+        scheduleStrategySync(() => ({ phases, offers, personas }));
       },
       updateOffer: (id, updates) => {
         set((state) => ({
@@ -59,7 +67,8 @@ export const useStrategyStore = create<StrategyState>()(
             o.id === id ? { ...o, ...updates } : o
           ),
         }));
-        syncStrategyToSupabase(get().phases, get().offers, get().personas);
+        const { phases, offers, personas } = get();
+        scheduleStrategySync(() => ({ phases, offers, personas }));
       },
       updatePersona: (id, updates) => {
         set((state) => ({
@@ -67,7 +76,23 @@ export const useStrategyStore = create<StrategyState>()(
             p.id === id ? { ...p, ...updates } : p
           ),
         }));
-        syncStrategyToSupabase(get().phases, get().offers, get().personas);
+        const { phases, offers, personas } = get();
+        scheduleStrategySync(() => ({ phases, offers, personas }));
+      },
+      deletePhase: (id) => {
+        set((state) => ({ phases: state.phases.filter((p) => p.id !== id) }));
+        const { phases, offers, personas } = get();
+        scheduleStrategySync(() => ({ phases, offers, personas }));
+      },
+      deleteOffer: (id) => {
+        set((state) => ({ offers: state.offers.filter((o) => o.id !== id) }));
+        const { phases, offers, personas } = get();
+        scheduleStrategySync(() => ({ phases, offers, personas }));
+      },
+      deletePersona: (id) => {
+        set((state) => ({ personas: state.personas.filter((p) => p.id !== id) }));
+        const { phases, offers, personas } = get();
+        scheduleStrategySync(() => ({ phases, offers, personas }));
       },
       loadFromSupabase: async () => {
         const { phases, offers, personas } = await loadStrategyFromSupabase();
@@ -79,7 +104,7 @@ export const useStrategyStore = create<StrategyState>()(
       },
       resetAll: () => {
         set({ phases: [], offers: [], personas: [] });
-        syncStrategyToSupabase([], [], []);
+        scheduleStrategySync(() => ({ phases: [], offers: [], personas: [] }));
       },
     }),
     { name: 'dz-strategy' }

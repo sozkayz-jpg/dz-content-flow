@@ -39,7 +39,13 @@ export function KPIsPage() {
 
   const handleSave = () => {
     if (!weekInput) return;
-    const platforms = {} as Record<Platform, any>;
+    const platforms: Record<
+      Platform,
+      { followers: number; reach: number; engagementRate: number; postsPublished: number }
+    > = {} as Record<
+      Platform,
+      { followers: number; reach: number; engagementRate: number; postsPublished: number }
+    >;
     activePlatforms.forEach((p) => {
       platforms[p] = {
         followers: parseInt(platformInputs[p]?.followers || '0') || 0,

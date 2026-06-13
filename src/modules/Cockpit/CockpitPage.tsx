@@ -1,8 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Card } from '../../components/ui/Card';
 import { useContentStore } from '../../stores/contentStore';
-import { DARIJA_QUOTES } from '../../lib/constants';
-import { formatDate, getWeekNumber } from '../../lib/utils';
+import { useDailyStore } from '../../stores/dailyStore';
+import {
+  formatDate,
+  getWeekNumber,
+  getStartOfWeek,
+  computeStreak,
+} from '../../lib/utils';
 import {
   Target,
   CheckCircle2,
@@ -13,76 +18,51 @@ import {
   Quote,
 } from 'lucide-react';
 
-interface Task {
-  id: string;
-  text: string;
-  done: boolean;
-}
-
 export function CockpitPage() {
   const { posts } = useContentStore();
-  const [objective, setObjective] = useState('');
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: '1', text: '', done: false },
-    { id: '2', text: '', done: false },
-    { id: '3', text: '', done: false },
-  ]);
-  const [streak, setStreak] = useState(12);
-  const [quote, setQuote] = useState('');
+  const { days, ensureToday, setObjective, updateTask, toggleTask } =
+    useDailyStore();
 
   useEffect(() => {
-    const today = new Date();
-    const dayStr = today.toDateString();
-    const stored = localStorage.getItem('dz-cockpit-' + dayStr);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setObjective(parsed.objective || '');
-      setTasks(parsed.tasks || tasks);
-      setStreak(parsed.streak || 12);
-    } else {
-      setQuote(DARIJA_QUOTES[Math.floor(Math.random() * DARIJA_QUOTES.length)]);
-    }
-  }, []);
+    ensureToday();
+  }, [ensureToday]);
 
-  useEffect(() => {
-    const today = new Date();
-    const dayStr = today.toDateString();
-    localStorage.setItem(
-      'dz-cockpit-' + dayStr,
-      JSON.stringify({ objective, tasks, streak })
-    );
-  }, [objective, tasks, streak]);
+  const todayKey = useMemo(() => new Date().toDateString(), []);
+  const todayData = days[todayKey] ?? {
+    objective: '',
+    tasks: [
+      { id: '1', text: '', done: false },
+      { id: '2', text: '', done: false },
+      { id: '3', text: '', done: false },
+    ],
+    quote: '',
+  };
 
-  const scheduledPosts = posts
-    .filter((p) => p.status === 'scheduled' && p.scheduledDate)
-    .sort(
-      (a, b) =>
-        new Date(a.scheduledDate!).getTime() - new Date(b.scheduledDate!).getTime()
-    );
+  const streak = useMemo(() => computeStreak(posts), [posts]);
 
-  const nextPost = scheduledPosts[0];
-  const publishedThisWeek = posts.filter((p) => {
-    if (!p.scheduledDate) return false;
-    const postDate = new Date(p.scheduledDate);
-    const now = new Date();
-    return (
-      postDate >= new Date(now.setDate(now.getDate() - now.getDay())) &&
-      p.status === 'published'
-    );
-  }).length;
-
+  const startOfWeek = useMemo(() => getStartOfWeek(new Date()), []);
+  const publishedThisWeek = useMemo(
+    () =>
+      posts.filter((p) => {
+        if (p.status !== 'published' || !p.scheduledDate) return false;
+        return new Date(p.scheduledDate) >= startOfWeek;
+      }).length,
+    [posts, startOfWeek]
+  );
   const weekGoal = 7;
   const weekScore = Math.round((publishedThisWeek / weekGoal) * 100);
 
-  const toggleTask = (id: string) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
-    );
-  };
-
-  const updateTaskText = (id: string, text: string) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, text } : t)));
-  };
+  const nextPost = useMemo(
+    () =>
+      posts
+        .filter((p) => p.status === 'scheduled' && p.scheduledDate)
+        .sort(
+          (a, b) =>
+            new Date(a.scheduledDate!).getTime() -
+            new Date(b.scheduledDate!).getTime()
+        )[0],
+    [posts]
+  );
 
   const today = new Date();
   const weekNum = getWeekNumber(today);
@@ -106,7 +86,7 @@ export function CockpitPage() {
             <h3 className="text-sm font-semibold text-white">Objectif du jour</h3>
           </div>
           <textarea
-            value={objective}
+            value={todayData.objective}
             onChange={(e) => setObjective(e.target.value)}
             placeholder="Quel est ton objectif principal aujourd'hui ?"
             className="w-full resize-none bg-transparent border-none p-0 text-sm text-white placeholder:text-text-muted focus:ring-0"
@@ -121,7 +101,7 @@ export function CockpitPage() {
             <h3 className="text-sm font-semibold text-white">3 tâches prioritaires</h3>
           </div>
           <div className="space-y-2">
-            {tasks.map((task) => (
+            {todayData.tasks.map((task) => (
               <div key={task.id} className="flex items-center gap-2">
                 <button onClick={() => toggleTask(task.id)}>
                   {task.done ? (
@@ -132,7 +112,9 @@ export function CockpitPage() {
                 </button>
                 <input
                   value={task.text}
-                  onChange={(e) => updateTaskText(task.id, e.target.value)}
+                  onChange={(e) =>
+                    updateTask(task.id, e.target.value, task.done)
+                  }
                   placeholder={`Tâche ${task.id}`}
                   className={`flex-1 bg-transparent border-none p-0 text-sm ${
                     task.done
@@ -156,14 +138,16 @@ export function CockpitPage() {
             <span className="text-sm text-text-secondary">jours</span>
           </div>
           <p className="text-xs text-text-muted">
-            Publie aujourd'hui pour maintenir ta série !
+            {streak > 0
+              ? "Continue sur cette lancée !"
+              : "Publie aujourd'hui pour démarrer ta série."}
           </p>
           <div className="flex gap-1">
             {Array.from({ length: 7 }).map((_, i) => (
               <div
                 key={i}
                 className={`flex-1 h-2 rounded-full ${
-                  i < (streak % 7) + 1 ? 'bg-orange-400' : 'bg-dark-hover'
+                  i < (streak % 7) ? 'bg-orange-400' : 'bg-dark-hover'
                 }`}
               />
             ))}
@@ -180,7 +164,9 @@ export function CockpitPage() {
           </div>
           {nextPost ? (
             <div className="space-y-2">
-              <p className="text-sm text-white line-clamp-2">{nextPost.title || nextPost.content?.hook}</p>
+              <p className="text-sm text-white line-clamp-2">
+                {nextPost.title || nextPost.content?.hook}
+              </p>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-text-muted">
                   {nextPost.scheduledDate
@@ -221,7 +207,9 @@ export function CockpitPage() {
             <Quote className="w-4 h-4 text-purple-400" />
             <h3 className="text-sm font-semibold text-white">Citation du jour</h3>
           </div>
-          <p className="text-sm text-white leading-relaxed italic">"{quote}"</p>
+          <p className="text-sm text-white leading-relaxed italic">
+            "{todayData.quote}"
+          </p>
           <p className="text-xs text-text-muted">— Proverbe algérien</p>
         </Card>
       </div>

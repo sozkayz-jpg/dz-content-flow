@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Post } from '../types';
 import { generateId } from '../lib/utils';
-import { syncPostsToSupabase, loadPostsFromSupabase } from '../lib/supabase';
+import { schedulePostsSync } from '../lib/syncManager';
+import { loadPostsFromSupabase } from '../lib/supabase';
 
 interface ContentState {
   posts: Post[];
@@ -26,18 +27,20 @@ export const useContentStore = create<ContentState>()(
         const now = new Date().toISOString();
         const newPost: Post = { ...post, id, createdAt: now, updatedAt: now };
         set((state) => ({ posts: [newPost, ...state.posts] }));
-        syncPostsToSupabase(get().posts);
+        schedulePostsSync(() => get().posts);
         return id;
       },
-      updatePost: (id, updates) =>
+      updatePost: (id, updates) => {
         set((state) => ({
           posts: state.posts.map((p) =>
             p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
           ),
-        })),
+        }));
+        schedulePostsSync(() => get().posts);
+      },
       deletePost: (id) => {
         set((state) => ({ posts: state.posts.filter((p) => p.id !== id) }));
-        syncPostsToSupabase(get().posts);
+        schedulePostsSync(() => get().posts);
       },
       toggleFavorite: (id) => {
         set((state) => ({
@@ -45,7 +48,7 @@ export const useContentStore = create<ContentState>()(
             p.id === id ? { ...p, isFavorite: !p.isFavorite } : p
           ),
         }));
-        syncPostsToSupabase(get().posts);
+        schedulePostsSync(() => get().posts);
       },
       addTag: (id, tag) => {
         set((state) => ({
@@ -55,7 +58,7 @@ export const useContentStore = create<ContentState>()(
               : p
           ),
         }));
-        syncPostsToSupabase(get().posts);
+        schedulePostsSync(() => get().posts);
       },
       removeTag: (id, tag) => {
         set((state) => ({
@@ -63,7 +66,7 @@ export const useContentStore = create<ContentState>()(
             p.id === id ? { ...p, tags: p.tags.filter((t) => t !== tag) } : p
           ),
         }));
-        syncPostsToSupabase(get().posts);
+        schedulePostsSync(() => get().posts);
       },
       getPostById: (id) => get().posts.find((p) => p.id === id),
       loadFromSupabase: async () => {
@@ -74,7 +77,7 @@ export const useContentStore = create<ContentState>()(
       },
       resetAll: () => {
         set({ posts: [] });
-        syncPostsToSupabase([]);
+        schedulePostsSync(() => []);
       },
     }),
     { name: 'dz-content' }

@@ -5,6 +5,7 @@ Outil de pilotage de contenu pour créateur algérien spécialisé en business e
 ## Stack technique
 
 - **React 19 + TypeScript + Vite**
+- **React Router v7 (HashRouter)** — routing côté client, URLs partageables
 - **Tailwind CSS v3** — thème 100% sombre
 - **Zustand** — state management avec persist localStorage
 - **Framer Motion** — animations
@@ -33,6 +34,18 @@ Ouvre [http://localhost:5173](http://localhost:5173) dans ton navigateur.
 6. **🗺️ Stratégie** — Roadmap 90 jours, offres, personas
 7. **📊 KPIs** — Saisie manuelle, graphiques d'évolution, score santé
 8. **⚙️ Paramètres** — Clé API, modèle IA, export/import JSON, reset
+
+## Architecture & améliorations
+
+| Amélioration | Détail |
+|--------------|--------|
+| **Lazy loading** | Chaque module est chargé à la demande (`React.lazy`) — le bundle initial est allégé |
+| **Routing** | `HashRouter` pour des URLs partageables (`#/cockpit`, `#/calendar`, …) et historique navigateur natif |
+| **Sync debounced** | La synchronisation Supabase attend 2s après la dernière mutation pour éviter le spam réseau |
+| **Daily Store** | Objectif, tâches et citation du jour centralisés dans Zustand (plus de `localStorage` dispersé dans le Cockpit) |
+| **Streak auto** | Calculé dynamiquement depuis les vraies dates de publication, plus de valeur hardcodée |
+| **Parsing IA sécurisé** | `try/catch` + validation de schema sur la réponse JSON des LLMs (OpenRouter & Ollama) |
+| **Typage strict** | Suppression des `any` résiduels et respect des règles `noUnusedLocals` / `noUnusedParameters` |
 
 ## Raccourcis clavier
 

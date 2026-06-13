@@ -3,6 +3,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { PLATFORMS, AI_MODELS } from '../../lib/constants';
+import type { Platform } from '../../types';
 import { Check, ChevronRight, Sparkles } from 'lucide-react';
 
 interface OnboardingWizardProps {
@@ -52,7 +53,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       if (!selectedPlatforms.includes(p)) togglePlatform(p);
     });
     selectedPlatforms.forEach((p) => {
-      if (!activePlatforms.includes(p as any)) togglePlatform(p as any);
+      if (!activePlatforms.includes(p as Platform)) togglePlatform(p as Platform);
     });
     if (apiKey) setStoreApiKey(apiKey);
     setDefaultModel(model);
