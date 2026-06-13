@@ -5,6 +5,8 @@ import { generateId } from '../lib/utils';
 import { scheduleLivesSync } from '../lib/syncManager';
 import { loadLivesFromSupabase } from '../lib/supabase';
 
+const STORE_VERSION = 1;
+
 interface LiveState {
   lives: Live[];
   addLive: (live: Omit<Live, 'id' | 'createdAt'>) => string;
@@ -13,6 +15,13 @@ interface LiveState {
   toggleFavorite: (id: string) => void;
   loadFromSupabase: () => Promise<void>;
   resetAll: () => void;
+}
+
+function migrateLiveState(persisted: unknown): unknown {
+  if (!persisted || typeof persisted !== 'object') return { lives: [] };
+  const state = persisted as Record<string, unknown>;
+  if (!Array.isArray(state.lives)) return { lives: [] };
+  return state;
 }
 
 export const useLiveStore = create<LiveState>()(
@@ -57,6 +66,15 @@ export const useLiveStore = create<LiveState>()(
         scheduleLivesSync(() => []);
       },
     }),
-    { name: 'dz-lives' }
+    {
+      name: 'dz-lives',
+      version: STORE_VERSION,
+      migrate: (persistedState, version) => {
+        if (version < STORE_VERSION) {
+          return migrateLiveState(persistedState);
+        }
+        return persistedState;
+      },
+    }
   )
 );

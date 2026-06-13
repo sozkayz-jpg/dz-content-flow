@@ -5,6 +5,8 @@ import { generateId } from '../lib/utils';
 import { scheduleStrategySync } from '../lib/syncManager';
 import { loadStrategyFromSupabase } from '../lib/supabase';
 
+const STORE_VERSION = 1;
+
 interface StrategyState {
   phases: Phase[];
   offers: Offer[];
@@ -20,6 +22,16 @@ interface StrategyState {
   deletePersona: (id: string) => void;
   loadFromSupabase: () => Promise<void>;
   resetAll: () => void;
+}
+
+function migrateStrategyState(persisted: unknown): unknown {
+  if (!persisted || typeof persisted !== 'object') return { phases: [], offers: [], personas: [] };
+  const state = persisted as Record<string, unknown>;
+  return {
+    phases: Array.isArray(state.phases) ? state.phases : [],
+    offers: Array.isArray(state.offers) ? state.offers : [],
+    personas: Array.isArray(state.personas) ? state.personas : [],
+  };
 }
 
 export const useStrategyStore = create<StrategyState>()(
@@ -107,6 +119,15 @@ export const useStrategyStore = create<StrategyState>()(
         scheduleStrategySync(() => ({ phases: [], offers: [], personas: [] }));
       },
     }),
-    { name: 'dz-strategy' }
+    {
+      name: 'dz-strategy',
+      version: STORE_VERSION,
+      migrate: (persistedState, version) => {
+        if (version < STORE_VERSION) {
+          return migrateStrategyState(persistedState);
+        }
+        return persistedState;
+      },
+    }
   )
 );

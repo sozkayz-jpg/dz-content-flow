@@ -14,7 +14,7 @@ import {
   AI_PROVIDERS,
   OLLAMA_MODELS,
 } from '../../lib/constants';
-import type { Language } from '../../types';
+import type { Language, Platform, Phase, Offer, Persona } from '../../types';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import {
   Download,
@@ -128,8 +128,24 @@ export function SettingsPage() {
   };
 
   const handleExport = () => {
+    const s = useSettingsStore.getState();
     const data = {
-      settings: useSettingsStore.getState(),
+      settings: {
+        creatorName: s.creatorName,
+        niche: s.niche,
+        activePlatforms: s.activePlatforms,
+        aiProvider: s.aiProvider,
+        apiKey: s.apiKey,
+        defaultModel: s.defaultModel,
+        defaultLanguage: s.defaultLanguage,
+        followerGoals90d: s.followerGoals90d,
+        supabaseUrl: s.supabaseUrl,
+        supabaseAnonKey: s.supabaseAnonKey,
+        ollamaBaseUrl: s.ollamaBaseUrl,
+        ollamaModel: s.ollamaModel,
+        ollamaApiKey: s.ollamaApiKey,
+        hasCompletedOnboarding: s.hasCompletedOnboarding,
+      },
       content: useContentStore.getState().posts,
       lives: useLiveStore.getState().lives,
       strategy: {
@@ -138,6 +154,14 @@ export function SettingsPage() {
         personas: useStrategyStore.getState().personas,
       },
       kpis: useKPIStore.getState().weeklyData,
+      daily: (() => {
+        try {
+          const raw = localStorage.getItem('dz-daily');
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return null;
+        }
+      })(),
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -156,11 +180,85 @@ export function SettingsPage() {
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        JSON.parse(event.target?.result as string);
-        toast.success('Import terminé (rechargement nécessaire)');
-        setTimeout(() => window.location.reload(), 1500);
+        const data = JSON.parse(event.target?.result as string);
+        if (!data || typeof data !== 'object') throw new Error('Format invalide');
+
+        // Restore settings
+        if (data.settings && typeof data.settings === 'object') {
+          const {
+            creatorName,
+            niche,
+            activePlatforms,
+            aiProvider,
+            apiKey,
+            defaultModel,
+            defaultLanguage,
+            followerGoals90d,
+            supabaseUrl,
+            supabaseAnonKey,
+            ollamaBaseUrl,
+            ollamaModel,
+            ollamaApiKey,
+            hasCompletedOnboarding,
+          } = data.settings;
+          const ss = useSettingsStore.getState();
+          if (creatorName !== undefined) ss.setCreatorName(creatorName);
+          if (niche !== undefined) ss.setNiche(niche);
+          if (activePlatforms) {
+            // Reset then add
+            ss.activePlatforms.forEach((p: Platform) => ss.togglePlatform(p));
+            activePlatforms.forEach((p: Platform) => ss.togglePlatform(p));
+          }
+          if (aiProvider) ss.setAiProvider(aiProvider);
+          if (apiKey) ss.setApiKey(apiKey);
+          if (defaultModel) ss.setDefaultModel(defaultModel);
+          if (defaultLanguage) ss.setDefaultLanguage(defaultLanguage);
+          if (followerGoals90d) {
+            Object.entries(followerGoals90d).forEach(([platform, goal]) => {
+              ss.setFollowerGoal(platform as Platform, goal as number);
+            });
+          }
+          if (supabaseUrl !== undefined) ss.setSupabaseUrl(supabaseUrl);
+          if (supabaseAnonKey !== undefined) ss.setSupabaseAnonKey(supabaseAnonKey);
+          if (ollamaBaseUrl !== undefined) ss.setOllamaBaseUrl(ollamaBaseUrl);
+          if (ollamaModel) ss.setOllamaModel(ollamaModel);
+          if (ollamaApiKey) ss.setOllamaApiKey(ollamaApiKey);
+          if (hasCompletedOnboarding) ss.completeOnboarding();
+        }
+
+        // Restore content
+        if (Array.isArray(data.content)) {
+          useContentStore.setState({ posts: data.content });
+        }
+
+        // Restore lives
+        if (Array.isArray(data.lives)) {
+          useLiveStore.setState({ lives: data.lives });
+        }
+
+        // Restore strategy
+        if (data.strategy && typeof data.strategy === 'object') {
+          const patch: { phases?: Phase[]; offers?: Offer[]; personas?: Persona[] } = {};
+          if (Array.isArray(data.strategy.phases)) patch.phases = data.strategy.phases;
+          if (Array.isArray(data.strategy.offers)) patch.offers = data.strategy.offers;
+          if (Array.isArray(data.strategy.personas)) patch.personas = data.strategy.personas;
+          useStrategyStore.setState(patch);
+        }
+
+        // Restore KPIs
+        if (Array.isArray(data.kpis)) {
+          useKPIStore.setState({ weeklyData: data.kpis });
+        }
+
+        // Restore daily
+        if (data.daily && typeof data.daily === 'object') {
+          localStorage.setItem('dz-daily', JSON.stringify(data.daily));
+        }
+
+        toast.success('Import terminé — rechargement...');
+        setTimeout(() => window.location.reload(), 1200);
       } catch {
-        toast.error('Fichier invalide');
+        toast.error('Fichier invalide ou corrompu');
       }
     };
     reader.readAsText(file);

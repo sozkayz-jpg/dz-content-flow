@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware';
 import type { Settings, Platform, Language, AIProvider } from '../types';
 import { encryptSimple, decryptSimple } from '../lib/utils';
 
+const STORE_VERSION = 1;
+
 interface SettingsState extends Settings {
   hasCompletedOnboarding: boolean;
   setCreatorName: (name: string) => void;
@@ -44,6 +46,21 @@ const defaultSettings: Settings = {
   ollamaApiKey: '',
 };
 
+function migrateSettingsState(persisted: unknown): unknown {
+  if (!persisted || typeof persisted !== 'object') return { ...defaultSettings, hasCompletedOnboarding: false };
+  const state = persisted as Record<string, unknown>;
+  // Ensure all default keys exist
+  const merged = { ...defaultSettings, ...state };
+  // Ensure followerGoals90d has all platforms
+  merged.followerGoals90d = {
+    ...defaultSettings.followerGoals90d,
+    ...(typeof merged.followerGoals90d === 'object' && merged.followerGoals90d !== null
+      ? (merged.followerGoals90d as Record<Platform, number>)
+      : {}),
+  };
+  return { ...merged, hasCompletedOnboarding: state.hasCompletedOnboarding ?? false };
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
@@ -78,6 +95,13 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'dz-settings',
+      version: STORE_VERSION,
+      migrate: (persistedState, version) => {
+        if (version < STORE_VERSION) {
+          return migrateSettingsState(persistedState);
+        }
+        return persistedState;
+      },
       partialize: (state) => ({
         creatorName: state.creatorName,
         niche: state.niche,

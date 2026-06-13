@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-d
 import { Toaster } from 'sonner';
 import { Layout } from './components/layout/Layout';
 import { OnboardingWizard } from './components/shared/OnboardingWizard';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { useSettingsStore } from './stores/settingsStore';
 import { useContentStore } from './stores/contentStore';
 import { useLiveStore } from './stores/liveStore';
@@ -69,14 +70,70 @@ function AppRoutes() {
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           <Route path="/" element={<Navigate to="/cockpit" replace />} />
-          <Route path="/cockpit" element={<CockpitPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/generator" element={<GeneratorPage />} />
-          <Route path="/lives" element={<LivePlannerPage />} />
-          <Route path="/library" element={<LibraryPage />} />
-          <Route path="/strategy" element={<StrategyPage />} />
-          <Route path="/kpis" element={<KPIsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route
+            path="/cockpit"
+            element={
+              <ErrorBoundary moduleName="Cockpit">
+                <CockpitPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/calendar"
+            element={
+              <ErrorBoundary moduleName="Calendrier">
+                <CalendarPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/generator"
+            element={
+              <ErrorBoundary moduleName="Générateur">
+                <GeneratorPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/lives"
+            element={
+              <ErrorBoundary moduleName="Live Planner">
+                <LivePlannerPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/library"
+            element={
+              <ErrorBoundary moduleName="Bibliothèque">
+                <LibraryPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/strategy"
+            element={
+              <ErrorBoundary moduleName="Stratégie">
+                <StrategyPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/kpis"
+            element={
+              <ErrorBoundary moduleName="KPIs">
+                <KPIsPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ErrorBoundary moduleName="Paramètres">
+                <SettingsPage />
+              </ErrorBoundary>
+            }
+          />
         </Routes>
       </Suspense>
     </Layout>

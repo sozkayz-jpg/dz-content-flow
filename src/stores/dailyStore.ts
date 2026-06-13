@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DARIJA_QUOTES } from '../lib/constants';
 
+const STORE_VERSION = 1;
+
 export interface Task {
   id: string;
   text: string;
@@ -36,6 +38,13 @@ function createEmptyDay(): DayData {
     ],
     quote: DARIJA_QUOTES[Math.floor(Math.random() * DARIJA_QUOTES.length)],
   };
+}
+
+function migrateDailyState(persisted: unknown): unknown {
+  if (!persisted || typeof persisted !== 'object') return { days: {} };
+  const state = persisted as Record<string, unknown>;
+  if (!state.days || typeof state.days !== 'object') return { days: {} };
+  return state;
 }
 
 export const useDailyStore = create<DailyState>()(
@@ -80,6 +89,15 @@ export const useDailyStore = create<DailyState>()(
         });
       },
     }),
-    { name: 'dz-daily' }
+    {
+      name: 'dz-daily',
+      version: STORE_VERSION,
+      migrate: (persistedState, version) => {
+        if (version < STORE_VERSION) {
+          return migrateDailyState(persistedState);
+        }
+        return persistedState;
+      },
+    }
   )
 );

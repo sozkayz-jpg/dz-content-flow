@@ -5,6 +5,8 @@ import { generateId } from '../lib/utils';
 import { schedulePostsSync } from '../lib/syncManager';
 import { loadPostsFromSupabase } from '../lib/supabase';
 
+const STORE_VERSION = 1;
+
 interface ContentState {
   posts: Post[];
   addPost: (post: Omit<Post, 'id' | 'createdAt' | 'updatedAt'>) => string;
@@ -16,6 +18,18 @@ interface ContentState {
   getPostById: (id: string) => Post | undefined;
   loadFromSupabase: () => Promise<void>;
   resetAll: () => void;
+}
+
+function migrateContentState(persisted: unknown): unknown {
+  if (!persisted || typeof persisted !== 'object') return { posts: [] };
+  const state = persisted as Record<string, unknown>;
+  if (!Array.isArray(state.posts)) return { posts: [] };
+  const posts = (state.posts as Post[]).map((p) => ({
+    ...p,
+    tags: Array.isArray(p.tags) ? p.tags : [],
+    title: typeof p.title === 'string' ? p.title : p.content?.hook?.slice(0, 60),
+  }));
+  return { ...state, posts };
 }
 
 export const useContentStore = create<ContentState>()(
@@ -80,6 +94,15 @@ export const useContentStore = create<ContentState>()(
         schedulePostsSync(() => []);
       },
     }),
-    { name: 'dz-content' }
+    {
+      name: 'dz-content',
+      version: STORE_VERSION,
+      migrate: (persistedState, version) => {
+        if (version < STORE_VERSION) {
+          return migrateContentState(persistedState);
+        }
+        return persistedState;
+      },
+    }
   )
 );

@@ -4,6 +4,8 @@ import type { WeeklyKPI } from '../types';
 import { scheduleKPISync } from '../lib/syncManager';
 import { loadKPIsFromSupabase } from '../lib/supabase';
 
+const STORE_VERSION = 1;
+
 interface KPIState {
   weeklyData: WeeklyKPI[];
   addWeek: (data: WeeklyKPI) => void;
@@ -11,6 +13,13 @@ interface KPIState {
   deleteWeek: (week: string) => void;
   loadFromSupabase: () => Promise<void>;
   resetAll: () => void;
+}
+
+function migrateKPIState(persisted: unknown): unknown {
+  if (!persisted || typeof persisted !== 'object') return { weeklyData: [] };
+  const state = persisted as Record<string, unknown>;
+  if (!Array.isArray(state.weeklyData)) return { weeklyData: [] };
+  return state;
 }
 
 export const useKPIStore = create<KPIState>()(
@@ -53,6 +62,15 @@ export const useKPIStore = create<KPIState>()(
         scheduleKPISync(() => []);
       },
     }),
-    { name: 'dz-kpis' }
+    {
+      name: 'dz-kpis',
+      version: STORE_VERSION,
+      migrate: (persistedState, version) => {
+        if (version < STORE_VERSION) {
+          return migrateKPIState(persistedState);
+        }
+        return persistedState;
+      },
+    }
   )
 );
